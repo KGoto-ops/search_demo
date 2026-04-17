@@ -1,0 +1,7 @@
+tmp/*
+storage/*
+*credentials*
+.env
+*.key
+.claude/*
+log/*

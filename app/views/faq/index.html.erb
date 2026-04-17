@@ -1,0 +1,141 @@
+<div class="faq-container" data-faq-json="<%= @faq_json.html_safe %>">
+  <h1>FAQ 検索</h1>
+  <p class="subtitle">よくあるご質問をキーワードで検索できます</p>
+
+  <div class="search-area">
+    <div class="search-input-wrapper">
+      <input type="text" id="search-input" placeholder="例：パスワード、返品、送料..." autocomplete="off" />
+      <ul id="suggestions" class="suggestions-list" hidden></ul>
+    </div>
+    <button id="search-btn" type="button">検索</button>
+  </div>
+
+  <div id="token-debug" class="token-debug" hidden>
+    <span class="token-label">分割結果：</span>
+    <span id="token-list"></span>
+  </div>
+
+  <div id="results" class="results-area"></div>
+</div>
+
+<style>
+  body { font-family: "Hiragino Sans", "Meiryo", sans-serif; background: #f5f5f5; margin: 0; }
+  .faq-container { max-width: 720px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 1.8rem; margin-bottom: 4px; color: #1a1a2e; }
+  .subtitle { color: #666; margin-bottom: 24px; }
+
+  .search-area { display: flex; gap: 8px; position: relative; }
+  .search-input-wrapper { position: relative; flex: 1; }
+  #search-input {
+    width: 100%; padding: 12px 16px; font-size: 1rem;
+    border: 2px solid #ddd; border-radius: 8px; outline: none;
+    box-sizing: border-box;
+  }
+  #search-input:focus { border-color: #4a90e2; }
+  #search-btn {
+    padding: 12px 24px; background: #4a90e2; color: #fff;
+    border: none; border-radius: 8px; font-size: 1rem; cursor: pointer;
+    white-space: nowrap;
+  }
+  #search-btn:hover { background: #357abd; }
+
+  .suggestions-list {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    list-style: none; margin: 0; padding: 4px 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,.1); z-index: 100;
+  }
+  .suggestions-list li {
+    padding: 10px 16px; cursor: pointer; font-size: .95rem; color: #333;
+  }
+  .suggestions-list li:hover, .suggestions-list li.active { background: #f0f6ff; }
+  .suggestions-list .category { font-size: .75rem; color: #888; margin-right: 6px; }
+
+  .results-area { margin-top: 24px; }
+  .hint { color: #999; text-align: center; padding: 40px 0; }
+  .result-count { font-size: .9rem; color: #666; margin-bottom: 12px; }
+  .faq-card {
+    background: #fff; border-radius: 10px; padding: 20px 24px;
+    margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  }
+  .faq-card .category-tag {
+    display: inline-block; font-size: .75rem; color: #4a90e2;
+    background: #e8f0fb; padding: 2px 8px; border-radius: 4px; margin-bottom: 8px;
+  }
+  .faq-card .question { font-weight: bold; font-size: 1rem; margin-bottom: 8px; color: #1a1a2e; }
+  .faq-card .answer { font-size: .9rem; color: #555; line-height: 1.6; }
+  .no-results { text-align: center; color: #999; padding: 40px 0; }
+  .token-debug {
+    margin-top: 8px; padding: 8px 12px;
+    background: #fffbe6; border: 1px solid #ffe58f; border-radius: 6px;
+    font-size: .85rem; color: #555; line-height: 1.8;
+  }
+  .token-label { color: #999; margin-right: 4px; }
+  .mode-tabs {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .mode-tab {
+    padding: 6px 12px; font-size: .8rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid #ccc; background: #fff; color: #555;
+  }
+  .mode-tab.active {
+    background: #4a90e2; color: #fff; border-color: #4a90e2; font-weight: bold;
+  }
+  .token-chip {
+    display: inline-block; background: #fff; border: 1px solid #d9b300;
+    color: #7a5f00; border-radius: 4px; padding: 1px 7px; margin: 2px 3px;
+    font-size: .82rem;
+  }
+
+  .fuse-opts-panel {
+    margin-bottom: 12px; border: 1px solid #dde; border-radius: 8px;
+    background: #f8f8ff;
+  }
+  .fuse-opts-panel summary {
+    padding: 10px 14px; cursor: pointer; font-size: .85rem; font-weight: bold;
+    color: #445; user-select: none;
+  }
+  .fuse-opts-panel summary:hover { color: #4a90e2; }
+  .fuse-opts-body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .opts-section { display: flex; flex-direction: column; gap: 8px; }
+  .opts-section + .opts-section { border-top: 1px solid #e0e0f0; padding-top: 12px; }
+  .opts-section-title { font-size: .75rem; font-weight: bold; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+  .fuse-opt-row { display: flex; flex-direction: column; gap: 4px; }
+  .fuse-opt-row > label { font-size: .8rem; color: #555; }
+  .opt-desc { font-weight: normal; color: #999; }
+  .fuse-opt-control { display: flex; align-items: center; gap: 8px; }
+  .fuse-opt-control input[type="range"] { flex: 1; accent-color: #4a90e2; }
+  .fuse-opt-control input[type="number"] { width: 90px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: .9rem; }
+  .opt-val { font-size: .85rem; color: #4a90e2; font-weight: bold; min-width: 36px; }
+  .opts-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+  .opts-checks label {
+    display: flex; align-items: flex-start; gap: 6px;
+    font-size: .8rem; color: #555; cursor: pointer; line-height: 1.4;
+  }
+  .opts-checks input[type="checkbox"] { margin-top: 2px; accent-color: #4a90e2; flex-shrink: 0; }
+  .apply-btn {
+    align-self: flex-start; margin-top: 4px;
+    padding: 7px 18px; background: #4a90e2; color: #fff;
+    border: none; border-radius: 6px; font-size: .85rem; cursor: pointer;
+  }
+  .apply-btn:hover { background: #357abd; }
+  .apply-btn--done { background: #4caf50; }
+
+  mark.fuse-hl {
+    background: #fff176; color: inherit;
+    border-radius: 2px; padding: 0 1px;
+  }
+  .token-fields {
+    margin-top: 10px; padding-top: 8px;
+    border-top: 1px dashed #e0e0e0;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .token-field { font-size: .78rem; color: #888; line-height: 1.5; word-break: break-all; }
+  .token-field-key {
+    display: inline-block; font-family: monospace; font-size: .75rem;
+    color: #aaa; background: #f5f5f5; border-radius: 3px;
+    padding: 0 4px; margin-right: 4px;
+  }
+</style>
+
+<script type="application/json" id="faq-data"><%= @faq_json.html_safe %></script>
