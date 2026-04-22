@@ -1476,7 +1476,7 @@ function format(results, docs, {
   });
 }
 
-const WORD = /\b\w+\b/g;
+const WORD = /\S+/g;
 function createAnalyzer({
   isCaseSensitive = false,
   ignoreDiacritics = false
