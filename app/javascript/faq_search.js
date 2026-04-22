@@ -16,19 +16,20 @@ function tokenizeForDisplay(text) {
     .map((s) => s.segment);
 }
 
-let fuseRaw, fuseTok, augmentedData;
+let fuseRaw, fuseTok, fuseTokTS, augmentedData;
 
 function buildFuses(data, opts) {
   augmentedData = data;
+  const originalKeys = [
+    { name: "keywords", weight: 3 },
+    { name: "question", weight: 2 },
+    { name: "category", weight: 1 },
+    { name: "answer", weight: 1 },
+  ];
 
   fuseRaw = new Fuse(augmentedData, {
     ...opts,
-    keys: [
-      { name: "keywords", weight: 3 },
-      { name: "question", weight: 2 },
-      { name: "category", weight: 1 },
-      { name: "answer", weight: 1 },
-    ],
+    keys: originalKeys,
   });
 
   const indexed = augmentedData.map((item) => ({
@@ -38,21 +39,21 @@ function buildFuses(data, opts) {
     _a: tokenize(item.answer),
     _c: tokenize(item.category),
   }));
-  fuseTok = new Fuse(indexed, {
-    ...opts,
-    keys: [
-      { name: "_k", weight: 3 },
-      { name: "_q", weight: 2 },
-      { name: "_c", weight: 1 },
-      { name: "_a", weight: 1 },
-    ],
-  });
+  const tokKeys = [
+    { name: "_k", weight: 3 },
+    { name: "_q", weight: 2 },
+    { name: "_c", weight: 1 },
+    { name: "_a", weight: 1 },
+  ];
+  fuseTok   = new Fuse(indexed, { ...opts, keys: [...originalKeys, ...tokKeys] });
+  fuseTokTS = new Fuse(indexed, { ...opts, useTokenSearch: true, keys: [...originalKeys, ...tokKeys] });
 }
 
 const MODES = [
   { label: "① トークン化なし", search: (q) => fuseRaw.search(q) },
   { label: "② 検索文のみトークン化", search: (q) => fuseRaw.search(tokenize(q)) },
   { label: "③ 両方トークン化", search: (q) => fuseTok.search(tokenize(q)) },
+  { label: "④ 両方トークン化 + useTokenSearch", search: (q) => fuseTokTS.search(tokenize(q)) },
 ];
 
 function escapeHtml(str) {
