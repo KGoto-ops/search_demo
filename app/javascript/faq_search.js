@@ -5,54 +5,42 @@ const HIRAGANA = /^[\u3041-\u3096]+$/;
 
 function tokenize(text) {
   return [...segmenter.segment(text)]
-    .filter((s) => s.isWordLike)
+    .filter((s) => s.isWordLike && (!_filterShortHiragana || !(HIRAGANA.test(s.segment) && s.segment.length <= 2)))
     .map((s) => s.segment)
     .join(" ");
 }
 
-function tokenizeForDisplay(text) {
+function tokenizeAll(text) {
   return [...segmenter.segment(text)]
     .filter((s) => s.isWordLike)
     .map((s) => s.segment);
 }
 
-let fuseRaw, fuseTok, fuseTokTS, augmentedData, _useTokenSearch = false;
+function tokenizeFiltered(text) {
+  return [...segmenter.segment(text)]
+    .filter((s) => s.isWordLike && !(HIRAGANA.test(s.segment) && s.segment.length <= 2))
+    .map((s) => s.segment);
+}
+
+let fuseRaw, augmentedData, _filterShortHiragana = false;
 
 function buildFuses(data, opts) {
   augmentedData = data;
-  _useTokenSearch = opts.useTokenSearch;
-  const originalKeys = [
-    { name: "keywords", weight: 10 },
-    { name: "question", weight: 2 },
-    { name: "category", weight: 1 },
-    { name: "answer", weight: 1 },
-  ];
-
+  const w = opts.weights;
   fuseRaw = new Fuse(augmentedData, {
     ...opts,
-    keys: originalKeys,
+    keys: [
+      { name: "keywords", weight: w.keywords },
+      { name: "question", weight: w.question },
+      { name: "category", weight: w.category },
+      { name: "answer",   weight: w.answer },
+    ],
   });
-
-  const indexed = augmentedData.map((item) => ({
-    ...item,
-    _k: item.keywords,
-    _q: tokenize(item.question),
-    _a: tokenize(item.answer),
-    _c: tokenize(item.category),
-  }));
-  const tokKeys = [
-    { name: "_q", weight: 2 },
-    { name: "_c", weight: 1 },
-    { name: "_a", weight: 1 },
-  ];
-  fuseTok   = new Fuse(indexed, { ...opts, keys: [...originalKeys, ...tokKeys] });
-  fuseTokTS = new Fuse(indexed, { ...opts, useTokenSearch: true, keys: [...originalKeys, ...tokKeys] });
 }
 
 const MODES = [
   { label: "① トークン化なし", search: (q) => fuseRaw.search(q) },
   { label: "② 検索文のみトークン化", search: (q) => fuseRaw.search(tokenize(q)) },
-  { label: "③ 両方トークン化", search: (q) => (_useTokenSearch ? fuseTokTS : fuseTok).search(tokenize(q)) },
 ];
 
 function escapeHtml(str) {
@@ -87,21 +75,14 @@ function renderCard(item, matches) {
   }
   const hl = (key, text) => applyHighlight(text, byKey[key]);
 
-  const tk = item._k ?? item.keywords ?? "";
-  const tq = item._q ?? tokenize(item.question);
-  const ta = item._a ?? tokenize(item.answer);
-  const tc = item._c ?? tokenize(item.category);
-  const hlK = (text) => applyHighlight(text, byKey["keywords"] ?? byKey["_k"]);
+  const tk = item.keywords ?? "";
 
   return `<div class="faq-card">
     <span class="category-tag">${hl("category", item.category)}</span>
     <div class="question">Q. ${hl("question", item.question)}</div>
     <div class="answer">${hl("answer", item.answer)}</div>
     <div class="token-fields">
-      <div class="token-field"><span class="token-field-key">keywords:</span> ${hlK(tk)}</div>
-      <div class="token-field"><span class="token-field-key">_c:</span> ${hl("_c", tc)}</div>
-      <div class="token-field"><span class="token-field-key">_q:</span> ${hl("_q", tq)}</div>
-      <div class="token-field"><span class="token-field-key">_a:</span> ${hl("_a", ta)}</div>
+      <div class="token-field"><span class="token-field-key">keywords:</span> ${applyHighlight(tk, byKey["keywords"])}</div>
     </div>
   </div>`;
 }
@@ -121,6 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     findAllMatches: false,
     useTokenSearch: true,
     useExtendedSearch: false,
+    weights: { keywords: 3, question: 2, category: 1, answer: 1 },
   };
 
   buildFuses(rawData, currentOpts);
@@ -158,6 +140,33 @@ document.addEventListener("DOMContentLoaded", () => {
           <label>minMatchCharLength <span class="opt-desc">（マッチに必要な最小文字数）</span></label>
           <div class="fuse-opt-control">
             <input type="number" id="opt-minmatch" min="1" max="20" step="1" value="${o.minMatchCharLength}">
+          </div>
+        </div>
+      </div>
+      <div class="opts-section">
+        <div class="opts-section-title">フィールドの重み（weight）</div>
+        <div class="fuse-opt-row">
+          <label>keywords <span class="opt-desc">（トークン化済みキーワード）</span></label>
+          <div class="fuse-opt-control">
+            <input type="number" id="opt-w-keywords" min="0" max="100" step="1" value="${o.weights.keywords}">
+          </div>
+        </div>
+        <div class="fuse-opt-row">
+          <label>question / _q</label>
+          <div class="fuse-opt-control">
+            <input type="number" id="opt-w-question" min="0" max="100" step="1" value="${o.weights.question}">
+          </div>
+        </div>
+        <div class="fuse-opt-row">
+          <label>category / _c</label>
+          <div class="fuse-opt-control">
+            <input type="number" id="opt-w-category" min="0" max="100" step="1" value="${o.weights.category}">
+          </div>
+        </div>
+        <div class="fuse-opt-row">
+          <label>answer / _a</label>
+          <div class="fuse-opt-control">
+            <input type="number" id="opt-w-answer" min="0" max="100" step="1" value="${o.weights.answer}">
           </div>
         </div>
       </div>
@@ -203,6 +212,12 @@ document.addEventListener("DOMContentLoaded", () => {
       findAllMatches: document.getElementById("opt-findAllMatches").checked,
       useTokenSearch: document.getElementById("opt-useTokenSearch").checked,
       useExtendedSearch: document.getElementById("opt-useExtendedSearch").checked,
+      weights: {
+        keywords: parseInt(document.getElementById("opt-w-keywords").value, 10),
+        question: parseInt(document.getElementById("opt-w-question").value, 10),
+        category: parseInt(document.getElementById("opt-w-category").value, 10),
+        answer:   parseInt(document.getElementById("opt-w-answer").value, 10),
+      },
     };
     buildFuses(rawData, currentOpts);
     if (input.value.trim()) doSearch(input.value);
@@ -231,7 +246,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const suggestions = document.getElementById("suggestions");
   const results = document.getElementById("results");
   const tokenDebug = document.getElementById("token-debug");
-  const tokenList = document.getElementById("token-list");
+  const tokenListAll = document.getElementById("token-list-all");
+  const tokenListFiltered = document.getElementById("token-list-filtered");
+  const filterCheckbox = document.getElementById("filter-short-hiragana");
+
+  filterCheckbox.checked = _filterShortHiragana;
+  filterCheckbox.addEventListener("change", () => {
+    _filterShortHiragana = filterCheckbox.checked;
+    buildFuses(rawData, currentOpts);
+    if (input.value.trim()) {
+      updateTokenDebug(input.value);
+      doSearch(input.value);
+    }
+  });
 
   tabContainer.querySelectorAll(".mode-tab").forEach((tabBtn) => {
     tabBtn.addEventListener("click", () => {
@@ -305,14 +332,21 @@ document.addEventListener("DOMContentLoaded", () => {
       hits.map((h) => renderCard(h.item, h.matches)).join("");
   }
 
-  input.addEventListener("input", () => {
-    const tokens = tokenizeForDisplay(input.value);
-    if (tokens.length) {
-      tokenList.innerHTML = tokens.map((t) => `<span class="token-chip">${escapeHtml(t)}</span>`).join("");
+  function updateTokenDebug(text) {
+    const all      = tokenizeAll(text);
+    const filtered = tokenizeFiltered(text);
+    if (all.length) {
+      const chip = (t) => `<span class="token-chip">${escapeHtml(t)}</span>`;
+      tokenListAll.innerHTML      = all.map(chip).join("");
+      tokenListFiltered.innerHTML = filtered.map(chip).join("");
       tokenDebug.hidden = false;
     } else {
       tokenDebug.hidden = true;
     }
+  }
+
+  input.addEventListener("input", () => {
+    updateTokenDebug(input.value);
     showSuggestions(input.value);
   });
 

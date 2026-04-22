@@ -10,9 +10,16 @@
     <button id="search-btn" type="button">検索</button>
   </div>
 
+  <div class="filter-toggle">
+    <label>
+      <input type="checkbox" id="filter-short-hiragana">
+      ひらがな2文字以下を除外
+    </label>
+  </div>
+
   <div id="token-debug" class="token-debug" hidden>
-    <span class="token-label">分割結果：</span>
-    <span id="token-list"></span>
+    <div><span class="token-label">全トークン：</span><span id="token-list-all"></span></div>
+    <div><span class="token-label">除外後：</span><span id="token-list-filtered"></span></div>
   </div>
 
   <div id="results" class="results-area"></div>
@@ -65,6 +72,10 @@
   .faq-card .question { font-weight: bold; font-size: 1rem; margin-bottom: 8px; color: #1a1a2e; }
   .faq-card .answer { font-size: .9rem; color: #555; line-height: 1.6; }
   .no-results { text-align: center; color: #999; padding: 40px 0; }
+  .filter-toggle {
+    margin-top: 8px; font-size: .85rem; color: #555;
+  }
+  .filter-toggle label { display: flex; align-items: center; gap: 6px; cursor: pointer; width: fit-content; }
   .token-debug {
     margin-top: 8px; padding: 8px 12px;
     background: #fffbe6; border: 1px solid #ffe58f; border-radius: 6px;
