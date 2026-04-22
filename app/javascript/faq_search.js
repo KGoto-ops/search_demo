@@ -5,7 +5,7 @@ const HIRAGANA = /^[\u3041-\u3096]+$/;
 
 function tokenize(text) {
   return [...segmenter.segment(text)]
-    .filter((s) => s.isWordLike && !(HIRAGANA.test(s.segment) && s.segment.length <= 2))
+    .filter((s) => s.isWordLike)
     .map((s) => s.segment)
     .join(" ");
 }
@@ -16,12 +16,13 @@ function tokenizeForDisplay(text) {
     .map((s) => s.segment);
 }
 
-let fuseRaw, fuseTok, fuseTokTS, augmentedData;
+let fuseRaw, fuseTok, fuseTokTS, augmentedData, _useTokenSearch = false;
 
 function buildFuses(data, opts) {
   augmentedData = data;
+  _useTokenSearch = opts.useTokenSearch;
   const originalKeys = [
-    { name: "keywords", weight: 3 },
+    { name: "keywords", weight: 10 },
     { name: "question", weight: 2 },
     { name: "category", weight: 1 },
     { name: "answer", weight: 1 },
@@ -40,7 +41,6 @@ function buildFuses(data, opts) {
     _c: tokenize(item.category),
   }));
   const tokKeys = [
-    { name: "_k", weight: 3 },
     { name: "_q", weight: 2 },
     { name: "_c", weight: 1 },
     { name: "_a", weight: 1 },
@@ -52,8 +52,7 @@ function buildFuses(data, opts) {
 const MODES = [
   { label: "① トークン化なし", search: (q) => fuseRaw.search(q) },
   { label: "② 検索文のみトークン化", search: (q) => fuseRaw.search(tokenize(q)) },
-  { label: "③ 両方トークン化", search: (q) => fuseTok.search(tokenize(q)) },
-  { label: "④ 両方トークン化 + useTokenSearch", search: (q) => fuseTokTS.search(tokenize(q)) },
+  { label: "③ 両方トークン化", search: (q) => (_useTokenSearch ? fuseTokTS : fuseTok).search(tokenize(q)) },
 ];
 
 function escapeHtml(str) {
@@ -111,8 +110,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const rawData = JSON.parse(document.getElementById("faq-data").textContent);
 
   let currentOpts = {
-    threshold: 0.5,
-    distance: 1000,
+    threshold: 0.6,
+    distance: 100,
     location: 0,
     minMatchCharLength: 2,
     ignoreLocation: true,
@@ -120,7 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     includeScore: true,
     includeMatches: true,
     findAllMatches: false,
-    useTokenSearch: false,
+    useTokenSearch: true,
     useExtendedSearch: false,
   };
 
@@ -217,7 +216,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // モードタブ
-  let currentMode = 2;
+  let currentMode = 0;
 
   const tabContainer = document.createElement("div");
   tabContainer.className = "mode-tabs";
