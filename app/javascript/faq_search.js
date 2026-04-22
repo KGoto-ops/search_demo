@@ -10,17 +10,6 @@ function tokenize(text) {
     .join(" ");
 }
 
-function tokenizeAll(text) {
-  return [...segmenter.segment(text)]
-    .filter((s) => s.isWordLike)
-    .map((s) => s.segment);
-}
-
-function tokenizeFiltered(text) {
-  return [...segmenter.segment(text)]
-    .filter((s) => s.isWordLike && !(HIRAGANA.test(s.segment) && s.segment.length <= 2))
-    .map((s) => s.segment);
-}
 
 let fuseRaw, augmentedData, _filterShortHiragana = false;
 
@@ -39,8 +28,9 @@ function buildFuses(data, opts) {
 }
 
 const MODES = [
-  { label: "① トークン化なし", search: (q) => fuseRaw.search(q) },
-  { label: "② 検索文のみトークン化", search: (q) => fuseRaw.search(tokenize(q)) },
+  { label: "① トークン化なし",        chips: false, query: (q) => q,                      search: (q) => fuseRaw.search(q) },
+  { label: "② 検索文のみトークン化",  chips: true,  query: (q) => tokenize(q),            search: (q) => fuseRaw.search(tokenize(q)) },
+  { label: "③ トークン化 + 全文追加", chips: true,  query: (q) => `${tokenize(q)} ${q}`,  search: (q) => fuseRaw.search(`${tokenize(q)} ${q}`) },
 ];
 
 function escapeHtml(str) {
@@ -246,8 +236,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const suggestions = document.getElementById("suggestions");
   const results = document.getElementById("results");
   const tokenDebug = document.getElementById("token-debug");
-  const tokenListAll = document.getElementById("token-list-all");
-  const tokenListFiltered = document.getElementById("token-list-filtered");
+  const tokenList = document.getElementById("token-list");
   const filterCheckbox = document.getElementById("filter-short-hiragana");
 
   filterCheckbox.checked = _filterShortHiragana;
@@ -266,6 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tabContainer
         .querySelectorAll(".mode-tab")
         .forEach((b, i) => b.classList.toggle("active", i === currentMode));
+      updateTokenDebug(input.value);
       if (input.value.trim()) doSearch(input.value);
     });
   });
@@ -318,6 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function doSearch(query) {
     suggestions.hidden = true;
+    updateTokenDebug(query);
     if (!query.trim()) {
       renderAll();
       return;
@@ -333,20 +324,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateTokenDebug(text) {
-    const all      = tokenizeAll(text);
-    const filtered = tokenizeFiltered(text);
-    if (all.length) {
-      const chip = (t) => `<span class="token-chip">${escapeHtml(t)}</span>`;
-      tokenListAll.innerHTML      = all.map(chip).join("");
-      tokenListFiltered.innerHTML = filtered.map(chip).join("");
-      tokenDebug.hidden = false;
-    } else {
+    if (!text.trim()) {
       tokenDebug.hidden = true;
+      return;
     }
+    const mode = MODES[currentMode];
+    const queryStr = mode.query(text);
+    if (mode.chips) {
+      const chip = (t) => `<span class="token-chip">${escapeHtml(t)}</span>`;
+      tokenList.innerHTML = queryStr.split(" ").filter(Boolean).map(chip).join("");
+    } else {
+      tokenList.textContent = queryStr;
+    }
+    tokenDebug.hidden = false;
   }
 
   input.addEventListener("input", () => {
-    updateTokenDebug(input.value);
     showSuggestions(input.value);
   });
 
